@@ -17,20 +17,20 @@ export default function Login() {
   const onFinish = async (values: any) => {
     setLoading(true)
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: values.email,
         password: values.password,
       })
 
-      if (error) throw error
+      if (authError) throw authError
 
       if (data.user) {
-        // Check if user has a partner
-        const { data: profile } = await supabase
+        // Check if user has a partner in their profile
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('partner_id')
           .eq('id', data.user.id)
-          .single()
+          .maybeSingle()
 
         if (profile?.partner_id) {
           router.push('/dashboard')
@@ -40,10 +40,16 @@ export default function Login() {
       }
     } catch (error: any) {
       console.error('Login Error:', error)
-      if (error.message === 'Failed to fetch') {
-        message.error('Connection failed. Please check if your Supabase URL in .env.local is correct.')
+      const errorMsg = error.message || 'Login failed'
+      
+      if (errorMsg.includes('Email not confirmed')) {
+        message.warning('Your heart is registered, but not verified! Please click the link in your email to continue.')
+      } else if (errorMsg.includes('Invalid login credentials')) {
+        message.error('The email or password didn\'t match our memories. Try again!')
+      } else if (errorMsg.includes('Failed to fetch')) {
+        message.error('Connection failed. Please check your Supabase URL in .env.local.')
       } else {
-        message.error(error.message || 'Login failed')
+        message.error(errorMsg)
       }
     } finally {
       setLoading(false)

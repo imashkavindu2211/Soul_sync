@@ -59,11 +59,12 @@ create table if not exists public.notifications (
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, name, avatar_url, invite_code)
+  insert into public.profiles (id, name, avatar_url, gender, invite_code)
   values (
     new.id, 
     new.raw_user_meta_data->>'full_name', 
     new.raw_user_meta_data->>'avatar_url',
+    new.raw_user_meta_data->>'gender',
     substr(md5(random()::text), 1, 8)
   );
   return new;
