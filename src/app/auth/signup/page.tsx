@@ -17,39 +17,53 @@ export default function Signup() {
   const onFinish = async (values: any) => {
     setLoading(true)
     try {
-      // 1. Sign up user
+      console.log('Attempting signup with:', { email: values.email, name: values.name })
+      
+      // 1. Sign up user with metadata
+      // This metadata (full_name) is picked up by our Supabase Trigger if it exists
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: values.email,
         password: values.password,
+        options: {
+          data: {
+            full_name: values.name,
+            gender: values.gender
+          }
+        }
       })
 
-      if (authError) throw authError
+      if (authError) {
+        console.error('Auth Error Details:', authError)
+        throw authError
+      }
 
       if (authData.user) {
-        // 2. Generate 6-digit invite code
-        const inviteCode = Math.floor(100000 + Math.random() * 900000).toString()
+        console.log('Signup successful for user:', authData.user.id)
+        
+        // IF email confirmation is ON (default):
+        // authData.session will be null. The user needs to check their inbox.
+        if (!authData.session) {
+          message.success('A love letter (confirmation) has been sent! Please check your inbox.')
+          router.push('/auth/login')
+          return
+        }
 
-        // 3. Create profile
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: authData.user.id,
-            name: values.name,
-            gender: values.gender,
-            invite_code: inviteCode,
-          })
-
-        if (profileError) throw profileError
-
+        // IF email confirmation is OFF:
+        // We can proceed to connect page
         message.success('Account created! Your love story begins.')
         router.push('/connect')
       }
     } catch (error: any) {
+      // Better error logging
+      const errorMsg = error.message || (typeof error === 'string' ? error : 'Something went wrong')
       console.error('Signup Error:', error)
-      if (error.message === 'Failed to fetch') {
-        message.error('Connection failed. Please check if your Supabase URL in .env.local is correct.')
+      
+      if (errorMsg.includes('Failed to fetch')) {
+        message.error('Connection failed! Please check if your Supabase URL in .env.local is valid and reachable.')
+      } else if (errorMsg.includes('email-already-exists') || errorMsg.includes('already registered')) {
+        message.error('This soul is already registered! Try logging in.')
       } else {
-        message.error(error.message || 'Something went wrong')
+        message.error(errorMsg)
       }
     } finally {
       setLoading(false)
